@@ -1,0 +1,56 @@
+# Copyright 2024-2025 cargo-dist contributors
+# Licensed under the MIT License (https://mit-license.org)
+# or the Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0), at your option.
+
+# CI configuration for building and publishing release binaries via cargo-dist.
+# This file is curated and should not be modified directly.
+# See https://github.com/cargo-dist/cargo-dist for more information.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # Build the release and upload a Homebrew Tarball to the Release
+  #
+  # This workflow is manually triggered from the Actions tab, or via
+  # `gh workflow run release.yml -f version=1.0.0 --repo ...`
+  #
+  # You can pass `--notes` to provide notes for the release, or `--prerelease`
+  # to mark the release as non-compliant with Semantic Versioning.
+  #
+  # https://github.com/cargo-dist/cargo-dist/releases/tag/v0.21.0
+  #
+  cargo-dist:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install cargo-dist
+        uses: cargo-dist/install-cargo-dist-action@v2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run cargo-dist
+        run: cargo dist build --release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo dist upload
+
+      - name: Create Homebrew Formula
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # This creates a pull request to the homebrew-core repository
+          # (or whatever repository you set in cargo.toml under [package.metadata.cargo-dist.homebrew])
+          cargo dist estimate

@@ -44,8 +44,24 @@ A Tetris clone for the terminal, written in Rust.
 
 ## Build & Run
 
+### From Source
 ```bash
 cargo run --release
+```
+
+### From Binary (Linux/macOS/Windows)
+
+#### Quick Install
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/termtris/termtris/main/install.sh | sh
+```
+
+#### Manual Download
+Download the latest release from [GitHub Releases](https://github.com/termtris/termtris/releases) for your platform.
+
+#### From crates.io
+```bash
+cargo install termtris
 ```
 
 ## Requirements
