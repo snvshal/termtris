@@ -20,8 +20,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run cargo-dist
-        uses: axodotdev/cargo-dist@v0
+        uses: axodotdev/cargo-dist-action@v1
         with:
-          args: --release
+          args: --release --platforms=linux,macos,windows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
