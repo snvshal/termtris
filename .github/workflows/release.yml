@@ -20,7 +20,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-dist
-        run: cargo install cargo-dist
+        run: |
+          curl -LsSf https://astral.sh/cargo-dist/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Build release
         run: cargo dist build --release
