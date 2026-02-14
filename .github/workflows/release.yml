@@ -22,14 +22,15 @@ jobs:
       - name: Install cargo-dist
         run: |
           curl -LsSf https://astral.sh/cargo-dist/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        env:
+          CARGO_DIST_VERSION: "0.21.1"
 
       - name: Build release
-        run: cargo dist build --release
+        run: ~/.cargo/bin/cargo dist build --release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload to GitHub Release
-        run: cargo dist upload
+        run: ~/.cargo/bin/cargo dist upload
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
