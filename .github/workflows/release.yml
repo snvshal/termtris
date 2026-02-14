@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  cargo-dist:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install cargo-dist
+        uses: cargo-dist/install-cargo-dist-action@v2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release
+        run: cargo dist build --release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to GitHub Release
+        run: cargo dist upload
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
