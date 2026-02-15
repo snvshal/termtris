@@ -22,8 +22,8 @@ jobs:
 
       - name: Run dist
         run: |
-          dist plan
-          dist build --artifacts=local
+          dist plan --tag=${{ github.ref_name }}
+          dist build
           dist host --steps=upload,release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
