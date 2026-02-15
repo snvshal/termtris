@@ -45,6 +45,6 @@ jobs:
         with:
           bin: termtris
           target: ${{ matrix.target }}
-          archive: raw
+          archive: tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
