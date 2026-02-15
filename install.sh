@@ -43,9 +43,9 @@ get_download_url() {
         exit 1
     fi
 
-    EXT=""
+    EXT=".tar.gz"
     if [ "$OS" = "windows" ]; then
-        EXT=".exe"
+        EXT=".zip"
     fi
 
     FILENAME="${BINARY_NAME}-v${TAG}-${ARCH}-${SUFFIX}${EXT}"
@@ -67,21 +67,37 @@ install() {
     URL=$(get_download_url "$OS" "$ARCH" "$SUFFIX")
     echo "Downloading: $URL"
 
-    TEMP_FILE=$(mktemp)
-    curl -L "$URL" -o "$TEMP_FILE"
+    TEMP_DIR=$(mktemp -d)
+    ARCHIVE="${TEMP_DIR}/archive.tar.gz"
+    curl -L "$URL" -o "$ARCHIVE"
 
-    if [ ! -s "$TEMP_FILE" ]; then
+    if [ ! -s "$ARCHIVE" ]; then
         echo "Error: Download failed" >&2
-        rm -f "$TEMP_FILE"
+        rm -rf "$TEMP_DIR"
         exit 1
     fi
 
-    chmod +x "$TEMP_FILE"
+    EXTRACTED="${TEMP_DIR}/extracted"
+    mkdir -p "$EXTRACTED"
+    tar -xzf "$ARCHIVE" -C "$EXTRACTED"
+
+    BINARY="${EXTRACTED}/${BINARY_NAME}"
+    if [ ! -f "$BINARY" ]; then
+        BINARY=$(find "$EXTRACTED" -type f -name "$BINARY_NAME*" -executable | head -1)
+    fi
+
+    if [ -z "$BINARY" ] || [ ! -f "$BINARY" ]; then
+        echo "Error: Could not find binary in archive" >&2
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+
+    chmod +x "$BINARY"
 
     if [ "$(id -u)" -ne 0 ]; then
         INSTALL_DIR="${HOME}/.local/bin"
         mkdir -p "$INSTALL_DIR"
-        mv "$TEMP_FILE" "${INSTALL_DIR}/${BINARY_NAME}"
+        mv "$BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
         echo "Installed to: ${INSTALL_DIR}/${BINARY_NAME}"
 
         if ! echo "$PATH" | grep -q ".local/bin"; then
@@ -91,10 +107,11 @@ install() {
             echo "  export PATH=\"\${HOME}/.local/bin:\$PATH\""
         fi
     else
-        mv "$TEMP_FILE" "/usr/local/bin/${BINARY_NAME}"
+        mv "$BINARY" "/usr/local/bin/${BINARY_NAME}"
         echo "Installed to: /usr/local/bin/${BINARY_NAME}"
     fi
 
+    rm -rf "$TEMP_DIR"
     echo "Done! Run 'termtris' to play."
 }
 
