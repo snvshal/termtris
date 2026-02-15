@@ -9,42 +9,77 @@ permissions:
   contents: write
 
 jobs:
-  create-release:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Upload install.sh
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: |
-            install.sh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-  build:
-    needs: create-release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
+      - name: Run tests
+        run: cargo test --release
+
+  plan:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
-        uses: taiki-e/upload-rust-binary-action@v1
+      - name: Install cargo-dist
+        uses: taiki-e/install-action@cargo-dist
+
+      - name: Plan release
+        id: plan
+        run: cargo dist plan --json > plan.json
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
         with:
-          bin: termtris
-          target: ${{ matrix.target }}
-          archive: tar.gz
+          name: plan
+          path: plan.json
+          retention-days: 1
+
+  build:
+    needs: plan
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-dist
+        uses: taiki-e/install-action@cargo-dist
+
+      - name: Build binaries
+        run: cargo dist build
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.target }}
+          path: |
+            ${{ env.DIST_DIR }}/*
+          retention-days: 7
+
+  publish:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Install cargo-dist
+        uses: taiki-e/install-action@cargo-dist
+
+      - name: Create GitHub Release
+        run: cargo dist github-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
