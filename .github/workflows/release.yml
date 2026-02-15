@@ -3,82 +3,76 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
 
-env:
-  CARGO_DIST_VERSION: v0.30.3
-
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Run tests
-        run: cargo test --release
-
-  plan:
-    needs: test
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.plan.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install cargo-dist
-        run: curl --proto '=https' --tlsv1.2 -LsSf "https://github.com/axodotdev/cargo-dist/releases/download/${CARGO_DIST_VERSION}/cargo-dist-installer.sh" | sh
-
-      - name: Plan release
-        id: plan
-        run: |
-          cargo dist plan --output-format=json > plan.json
-          MATRIX=$(jq -c '.ci.github.artifacts_matrix' plan.json)
-          if [ -z "$MATRIX" ] || [ "$MATRIX" = "null" ]; then
-            exit 1
-          fi
-          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-
   build:
-    needs: plan
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install cargo-dist
-        run: curl --proto '=https' --tlsv1.2 -LsSf "https://github.com/axodotdev/cargo-dist/releases/download/${CARGO_DIST_VERSION}/cargo-dist-installer.sh" | sh
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
-      - name: Build binaries
-        run: cargo dist build
+      - name: Build binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
 
-      - name: Upload binaries
+      - name: Package artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          NAME="termtris-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/termtris" "dist/termtris"
+          tar -C dist -czf "${NAME}.tar.gz" termtris
+          rm -rf dist
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "termtris-$env:GITHUB_REF_NAME-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/termtris.exe" "dist/termtris.exe"
+          Compress-Archive -Path "dist/termtris.exe" -DestinationPath "$name.zip" -Force
+          Remove-Item -Recurse -Force dist
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ matrix.target }}
-          path: |
-            target/distrib/*
+          name: ${{ matrix.target }}
+          path: termtris-${{ github.ref_name }}-${{ matrix.target }}.${{ matrix.archive }}
           retention-days: 7
 
   publish:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: artifacts/*
           fail_on_unmatched_files: true
           prerelease: ${{ contains(github.ref_name, '-') }}
