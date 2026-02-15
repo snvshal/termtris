@@ -9,19 +9,42 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Release
+  create-release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Run cargo-dist
-        uses: axodotdev/cargo-dist-action@v1
+      - name: Upload install.sh
+        uses: softprops/action-gh-release@v2
         with:
-          args: --release --platforms=linux,macos,windows
+          generate_release_notes: true
+          files: |
+            install.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: termtris
+          target: ${{ matrix.target }}
+          archive: raw
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

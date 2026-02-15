@@ -36,22 +36,20 @@ get_download_url() {
     ARCH="$2"
     SUFFIX="$3"
 
-    # Get latest release tag
-    TAG=$(curl -sL https://api.github.com/repos/${REPO}/${REPO}/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
+    TAG=$(curl -sL https://api.github.com/repos/${REPO}/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
 
     if [ -z "$TAG" ]; then
         echo "Error: Could not fetch latest release" >&2
         exit 1
     fi
 
-    # Handle Windows extension
     EXT=""
     if [ "$OS" = "windows" ]; then
         EXT=".exe"
     fi
 
     FILENAME="${BINARY_NAME}-v${TAG}-${ARCH}-${SUFFIX}${EXT}"
-    echo "https://github.com/${REPO}/${REPO}/releases/download/v${TAG}/${FILENAME}"
+    echo "https://github.com/${REPO}/releases/download/v${TAG}/${FILENAME}"
 }
 
 install() {
@@ -69,28 +67,23 @@ install() {
     URL=$(get_download_url "$OS" "$ARCH" "$SUFFIX")
     echo "Downloading: $URL"
 
-    # Download to temp file
     TEMP_FILE=$(mktemp)
     curl -L "$URL" -o "$TEMP_FILE"
 
-    # Check if download succeeded
     if [ ! -s "$TEMP_FILE" ]; then
         echo "Error: Download failed" >&2
         rm -f "$TEMP_FILE"
         exit 1
     fi
 
-    # Make executable
     chmod +x "$TEMP_FILE"
 
-    # Install to user local bin if no root
     if [ "$(id -u)" -ne 0 ]; then
         INSTALL_DIR="${HOME}/.local/bin"
         mkdir -p "$INSTALL_DIR"
         mv "$TEMP_FILE" "${INSTALL_DIR}/${BINARY_NAME}"
         echo "Installed to: ${INSTALL_DIR}/${BINARY_NAME}"
 
-        # Check if .local/bin is in PATH
         if ! echo "$PATH" | grep -q ".local/bin"; then
             echo ""
             echo "Warning: ${INSTALL_DIR} is not in your PATH"
@@ -105,7 +98,6 @@ install() {
     echo "Done! Run 'termtris' to play."
 }
 
-# Check for --help or -h
 for arg in "$@"; do
     case "$arg" in
         -h|--help)
@@ -113,7 +105,7 @@ for arg in "$@"; do
             echo ""
             echo "Usage: curl ... | sh"
             echo ""
-            echo "Or download manually from: https://github.com/${REPO}/${REPO}/releases"
+            echo "Or download manually from: https://github.com/${REPO}/releases"
             exit
             ;;
     esac
