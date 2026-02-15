@@ -426,7 +426,7 @@ fn draw_game(game: &Game) {
     print!("{}", MoveTo(start_x as u16, (msg_y + 2) as u16));
     print!(
         "{}",
-        "   arrows=move  space=hard  p=pause  q=quit".with(Color::DarkGrey)
+        "arrows=move  space=hard  p=pause  q=quit".with(Color::DarkGrey)
     );
 
     std::io::stdout().flush().unwrap();
