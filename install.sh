@@ -24,11 +24,39 @@ detect_arch() {
 
 detect_suffix() {
     OS="$1"
+    LIBC="$2"
     case "$OS" in
-        linux)     echo "unknown-linux-gnu";;
+        linux)
+            if [ "$LIBC" = "musl" ]; then
+                echo "unknown-linux-musl"
+            else
+                echo "unknown-linux-gnu"
+            fi
+            ;;
         macos)     echo "apple-darwin";;
         windows)   echo "pc-windows-msvc";;
     esac
+}
+
+detect_libc() {
+    if [ "$(uname -s)" != "Linux" ]; then
+        echo "none"
+        return
+    fi
+
+    if [ -f /etc/alpine-release ]; then
+        echo "musl"
+        return
+    fi
+
+    if command -v ldd >/dev/null 2>&1; then
+        if ldd --version 2>/dev/null | grep -qi musl; then
+            echo "musl"
+            return
+        fi
+    fi
+
+    echo "gnu"
 }
 
 get_download_url() {
@@ -52,24 +80,55 @@ get_download_url() {
     echo "https://github.com/${REPO}/releases/download/v${TAG}/${FILENAME}"
 }
 
+install_alpine_compat() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "Error: Need root to install Alpine compatibility libs for gnu binary fallback" >&2
+        exit 1
+    fi
+
+    if ! command -v apk >/dev/null 2>&1; then
+        echo "Error: apk not found, cannot install Alpine compatibility libs" >&2
+        exit 1
+    fi
+
+    apk add --no-cache libgcc libstdc++ gcompat
+}
+
 install() {
     OS=$(detect_os)
     ARCH=$(detect_arch)
-    SUFFIX=$(detect_suffix "$OS")
+    LIBC=$(detect_libc)
+    SUFFIX=$(detect_suffix "$OS" "$LIBC")
 
     if [ "$OS" = "unknown" ]; then
         echo "Error: Unsupported operating system" >&2
         exit 1
     fi
 
-    echo "Detected: $OS ($ARCH)"
-
-    URL=$(get_download_url "$OS" "$ARCH" "$SUFFIX")
-    echo "Downloading: $URL"
+    if [ "$OS" = "linux" ]; then
+        echo "Detected: $OS ($ARCH, $LIBC)"
+    else
+        echo "Detected: $OS ($ARCH)"
+    fi
 
     TEMP_DIR=$(mktemp -d)
     ARCHIVE="${TEMP_DIR}/archive.tar.gz"
-    curl -L "$URL" -o "$ARCHIVE"
+    URL=$(get_download_url "$OS" "$ARCH" "$SUFFIX")
+    echo "Downloading: $URL"
+    if ! curl -fL "$URL" -o "$ARCHIVE"; then
+        if [ "$OS" = "linux" ] && [ "$LIBC" = "musl" ] && [ "$SUFFIX" = "unknown-linux-musl" ]; then
+            echo "musl artifact not found, falling back to glibc binary with Alpine compatibility libs..."
+            install_alpine_compat
+            SUFFIX="unknown-linux-gnu"
+            URL=$(get_download_url "$OS" "$ARCH" "$SUFFIX")
+            echo "Downloading: $URL"
+            curl -fL "$URL" -o "$ARCHIVE"
+        else
+            echo "Error: Download failed" >&2
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+    fi
 
     if [ ! -s "$ARCHIVE" ]; then
         echo "Error: Download failed" >&2
