@@ -21,6 +21,9 @@ jobs:
         run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.30.3/cargo-dist-installer.sh | sh
 
       - name: Run dist
-        run: dist build --release --platforms=linux,macos,windows
+        run: |
+          dist plan
+          dist build --artifacts=local
+          dist host --steps=upload,release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
