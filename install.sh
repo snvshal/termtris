@@ -46,7 +46,7 @@ detect_arch() {
     case "$(uname -m)" in
         x86_64)    echo "x86_64";;
         aarch64|arm64) echo "aarch64";;
-        *)         echo "x86_64";;
+        *)         echo "unknown";;
     esac
 }
 
@@ -88,6 +88,42 @@ get_download_url() {
     echo "https://github.com/${REPO}/releases/download/v${TAG}/${FILENAME}"
 }
 
+get_checksum_url() {
+    OS="$1"
+    ARCH="$2"
+    SUFFIX="$3"
+
+    TAG=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
+
+    [ -z "$TAG" ] && log_error "Could not fetch latest release" && exit 1
+
+    EXT=".tar.gz"
+    [ "$OS" = "windows" ] && EXT=".zip"
+
+    FILENAME="${BINARY_NAME}-v${TAG}-${ARCH}-${SUFFIX}${EXT}.sha256"
+    echo "https://github.com/${REPO}/releases/download/v${TAG}/${FILENAME}"
+}
+
+verify_checksum() {
+    ARCHIVE_PATH="$1"
+    CHECKSUM_PATH="$2"
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        (cd "$(dirname "$ARCHIVE_PATH")" && sha256sum -c "$(basename "$CHECKSUM_PATH")") >/dev/null 2>&1
+        return $?
+    fi
+
+    if command -v shasum >/dev/null 2>&1; then
+        expected=$(cut -d' ' -f1 "$CHECKSUM_PATH")
+        actual=$(shasum -a 256 "$ARCHIVE_PATH" | awk '{print $1}')
+        [ "$expected" = "$actual" ]
+        return $?
+    fi
+
+    log_warn "No sha256 tool found; skipping checksum verification"
+    return 0
+}
+
 install_alpine_compat() {
     [ "$(id -u)" -ne 0 ] && log_error "Need root to install Alpine compatibility libs" && exit 1
     command -v apk >/dev/null 2>&1 || { log_error "apk not found"; exit 1; }
@@ -105,6 +141,7 @@ install() {
     SUFFIX=$(detect_suffix "$OS" "$LIBC")
 
     [ "$OS" = "unknown" ] && log_error "Unsupported operating system" && exit 1
+    [ "$ARCH" = "unknown" ] && log_error "Unsupported CPU architecture" && exit 1
 
     if [ "$OS" = "linux" ]; then
         log_info "Detected: $OS ($ARCH, $LIBC)"
@@ -113,8 +150,12 @@ install() {
     fi
 
     TEMP_DIR=$(mktemp -d)
-    ARCHIVE="${TEMP_DIR}/archive.tar.gz"
     URL=$(get_download_url "$OS" "$ARCH" "$SUFFIX")
+    CHECKSUM_URL=$(get_checksum_url "$OS" "$ARCH" "$SUFFIX")
+    EXT=".tar.gz"
+    [ "$OS" = "windows" ] && EXT=".zip"
+    ARCHIVE="${TEMP_DIR}/archive${EXT}"
+    CHECKSUM_FILE="${TEMP_DIR}/archive${EXT}.sha256"
 
     log_info "Downloading latest release..."
     if ! curl -fL "$URL" -o "$ARCHIVE" 2>/dev/null; then
@@ -123,6 +164,7 @@ install() {
             install_alpine_compat
             SUFFIX="unknown-linux-gnu"
             URL=$(get_download_url "$OS" "$ARCH" "$SUFFIX")
+            CHECKSUM_URL=$(get_checksum_url "$OS" "$ARCH" "$SUFFIX")
             curl -fL "$URL" -o "$ARCHIVE" 2>/dev/null || { log_error "Download failed"; rm -rf "$TEMP_DIR"; exit 1; }
         else
             log_error "Download failed"
@@ -132,11 +174,25 @@ install() {
     fi
 
     [ ! -s "$ARCHIVE" ] && log_error "Download failed (empty file)" && rm -rf "$TEMP_DIR" && exit 1
+    curl -fL "$CHECKSUM_URL" -o "$CHECKSUM_FILE" 2>/dev/null || { log_error "Checksum download failed"; rm -rf "$TEMP_DIR"; exit 1; }
+    verify_checksum "$ARCHIVE" "$CHECKSUM_FILE" || { log_error "Checksum verification failed"; rm -rf "$TEMP_DIR"; exit 1; }
 
     log_info "Extracting..."
     EXTRACTED="${TEMP_DIR}/extracted"
     mkdir -p "$EXTRACTED"
-    tar -xzf "$ARCHIVE" -C "$EXTRACTED"
+    if [ "$OS" = "windows" ] && [ "$EXT" = ".zip" ]; then
+        if command -v unzip >/dev/null 2>&1; then
+            unzip -q "$ARCHIVE" -d "$EXTRACTED"
+        elif command -v powershell.exe >/dev/null 2>&1; then
+            powershell.exe -NoProfile -Command "Expand-Archive -Path '$ARCHIVE' -DestinationPath '$EXTRACTED' -Force" >/dev/null
+        else
+            log_error "Could not extract zip (missing unzip or powershell)"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+    else
+        tar -xzf "$ARCHIVE" -C "$EXTRACTED"
+    fi
 
     BINARY="${EXTRACTED}/${BINARY_NAME}"
     [ ! -f "$BINARY" ] && BINARY=$(find "$EXTRACTED" -type f -name "$BINARY_NAME*" -executable | head -1)
@@ -149,7 +205,6 @@ install() {
         INSTALL_DIR="${HOME}/.local/bin"
         mkdir -p "$INSTALL_DIR"
         mv "$BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
-        printf '\n'
         log_success "Installed to: ${INSTALL_DIR}/${BINARY_NAME}"
 
         if ! echo "$PATH" | grep -q ".local/bin"; then
@@ -165,8 +220,6 @@ install() {
     rm -rf "$TEMP_DIR"
     printf '\n'
     printf "${GREEN}✓${NC} Done! Run ${GREEN}${BOLD}termtris${NC} to play.\n"
-    printf '\n'
-    printf '\n'
 }
 
 for arg in "$@"; do

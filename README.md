@@ -2,26 +2,7 @@
 
 A Tetris clone for the terminal, written in Rust.
 
-## Layout
-
-```
-┌──────────────────────────────────────┐
-│              TETRIS                  │
-├──────────────────────────────────────┤
-│  ┌────────────────────┐  ┌────────┐  │
-│  │                    │  │  NEXT  │  │
-│  │   GAME BOARD       │  │ ████   │  │
-│  │                    │  │   ██   │  │
-│  │                    │  │        │  │
-│  │                    │  │        │  │
-│  │                    │  └────────┘  │
-│  │                    │  ┌────────┐  │
-│  │                    │  │ S:    0│  │
-│  │                    │  │ L:    0│  │
-│  │                    │  │ L:    1│  │
-│  └────────────────────┘  └────────┘  │
-└──────────────────────────────────────┘
-```
+![Termtris preview](assets/preview.png)
 
 ### Game Structure
 
@@ -52,21 +33,32 @@ cargo run --release
 
 ### From Binary (Linux/macOS/Windows)
 
-#### Quick Install
+#### Quick Install (Linux/macOS/WSL/Git Bash)
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/snvshal/termtris/main/install.sh | sh
 ```
 
+For Windows PowerShell, download the `.zip` from GitHub Releases and extract `termtris.exe` into a folder on your `PATH`.
+
 #### Manual Download
 
 Download the latest release from [GitHub Releases](https://github.com/snvshal/termtris/releases) for your platform.
+Checksum files (`.sha256`) are provided alongside each release artifact.
 
+#### Supported Platforms
+
+- Linux: `x86_64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-gnu`, `aarch64-unknown-linux-musl`
+- macOS: `x86_64-apple-darwin`, `aarch64-apple-darwin`
+- Windows: `x86_64-pc-windows-msvc`
+
+<!--
 #### From crates.io
 
 ```bash
 cargo install termtris
 ```
+-->
 
 ## Requirements
 
