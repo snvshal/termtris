@@ -152,10 +152,10 @@ install() {
     TEMP_DIR=$(mktemp -d)
     URL=$(get_download_url "$OS" "$ARCH" "$SUFFIX")
     CHECKSUM_URL=$(get_checksum_url "$OS" "$ARCH" "$SUFFIX")
-    EXT=".tar.gz"
-    [ "$OS" = "windows" ] && EXT=".zip"
-    ARCHIVE="${TEMP_DIR}/archive${EXT}"
-    CHECKSUM_FILE="${TEMP_DIR}/archive${EXT}.sha256"
+    FILENAME=$(basename "$URL")
+    CHECKSUM_FILENAME=$(basename "$CHECKSUM_URL")
+    ARCHIVE="${TEMP_DIR}/${FILENAME}"
+    CHECKSUM_FILE="${TEMP_DIR}/${CHECKSUM_FILENAME}"
 
     log_info "Downloading latest release..."
     if ! curl -fL "$URL" -o "$ARCHIVE" 2>/dev/null; then
@@ -165,6 +165,10 @@ install() {
             SUFFIX="unknown-linux-gnu"
             URL=$(get_download_url "$OS" "$ARCH" "$SUFFIX")
             CHECKSUM_URL=$(get_checksum_url "$OS" "$ARCH" "$SUFFIX")
+            FILENAME=$(basename "$URL")
+            CHECKSUM_FILENAME=$(basename "$CHECKSUM_URL")
+            ARCHIVE="${TEMP_DIR}/${FILENAME}"
+            CHECKSUM_FILE="${TEMP_DIR}/${CHECKSUM_FILENAME}"
             curl -fL "$URL" -o "$ARCHIVE" 2>/dev/null || { log_error "Download failed"; rm -rf "$TEMP_DIR"; exit 1; }
         else
             log_error "Download failed"
@@ -180,7 +184,7 @@ install() {
     log_info "Extracting..."
     EXTRACTED="${TEMP_DIR}/extracted"
     mkdir -p "$EXTRACTED"
-    if [ "$OS" = "windows" ] && [ "$EXT" = ".zip" ]; then
+    if [ "${ARCHIVE##*.}" = "zip" ]; then
         if command -v unzip >/dev/null 2>&1; then
             unzip -q "$ARCHIVE" -d "$EXTRACTED"
         elif command -v powershell.exe >/dev/null 2>&1; then
