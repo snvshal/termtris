@@ -72,6 +72,17 @@ detect_libc() {
     echo "gnu"
 }
 
+detect_glibc_version() {
+    command -v ldd >/dev/null 2>&1 || return
+    ldd --version 2>/dev/null | head -n 1 | grep -oE '[0-9]+\.[0-9]+' | head -n 1
+}
+
+version_ge() {
+    A="$1"
+    B="$2"
+    [ "$(printf '%s\n%s\n' "$B" "$A" | sort -V | head -n1)" = "$B" ]
+}
+
 get_download_url() {
     OS="$1"
     ARCH="$2"
@@ -144,6 +155,15 @@ install() {
     [ "$ARCH" = "unknown" ] && log_error "Unsupported CPU architecture" && exit 1
 
     if [ "$OS" = "linux" ]; then
+        if [ "$LIBC" = "gnu" ]; then
+            MIN_GLIBC="2.31"
+            GLIBC_VER=$(detect_glibc_version)
+            if [ -n "$GLIBC_VER" ] && ! version_ge "$GLIBC_VER" "$MIN_GLIBC"; then
+                log_warn "glibc ${GLIBC_VER} detected (< ${MIN_GLIBC}); using musl build for compatibility"
+                LIBC="musl"
+                SUFFIX=$(detect_suffix "$OS" "$LIBC")
+            fi
+        fi
         log_info "Detected: $OS ($ARCH, $LIBC)"
     else
         log_info "Detected: $OS ($ARCH)"
