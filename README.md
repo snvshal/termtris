@@ -40,6 +40,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/snvshal/t
 ```
 
 For Windows PowerShell, download the `.zip` from GitHub Releases and extract `termtris.exe` into a folder on your `PATH`.
+On older Linux systems with glibc < 2.31, the installer will automatically use the musl build.
 
 #### Manual Download
 
